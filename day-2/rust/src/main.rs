@@ -25,7 +25,7 @@ fn main() {
 
     println!("Part 1: {}", interpreter.fetch(0));
 
-    'outer: for i in 0..99 {
+    'outer: for i in 0..=99 {
         'inner: for j in 0..=99 {
             let mut codes = input.split_terminator(",")
                 .map(|x| x.trim())
