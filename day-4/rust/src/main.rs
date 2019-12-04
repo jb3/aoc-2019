@@ -28,7 +28,7 @@ fn main() {
     println!("Part 2: {}", meets_part_two);
 }
 
-fn get_range() -> Range<i64> {
+fn get_range() -> Range<i32> {
     let mut f = File::open("../input").expect("Could not open input file");
 
     let mut buffer = String::new();
@@ -36,16 +36,16 @@ fn get_range() -> Range<i64> {
 
     let split = buffer.split("-");
 
-    let parsed = split.map(|splt| splt.trim().parse::<i64>().unwrap()).collect::<Vec<i64>>();
+    let parsed = split.map(|splt| splt.trim().parse::<i32>().unwrap()).collect::<Vec<i32>>();
 
     let (lower, upper) = (parsed[0], parsed[1]);
 
     lower..upper
 }
 
-fn number_meets_part_one(number: i64) -> bool {
-    if has_double_integer(number) {
-        if not_decreasing(number) {
+fn number_meets_part_one(number: i32) -> bool {
+    if not_decreasing(number) {
+        if has_double_integer(number) {
             return true;
         }
     }
@@ -53,26 +53,18 @@ fn number_meets_part_one(number: i64) -> bool {
     false
 }
 
-fn number_meets_part_two(number: i64) -> bool {
-    if has_double_integer(number) {
-        if not_decreasing(number) {
-            if has_no_larger_group(number) {
-                return true;
-            }
+fn number_meets_part_two(number: i32) -> bool {
+    if not_decreasing(number){
+        if has_no_larger_group(number) {
+            return true;
         }
     }
 
     false
 }
 
-fn has_double_integer(number: i64) -> bool {
-    let digits = number
-        .to_string()
-        .as_bytes()
-        .iter()
-        .map(|x| *x as char)
-        .map(|x| x.to_digit(10).unwrap())
-        .collect::<Vec<u32>>();
+fn has_double_integer(number: i32) -> bool {
+    let digits = get_digits(number);
 
     let rle = rle(digits);
 
@@ -85,8 +77,8 @@ fn has_double_integer(number: i64) -> bool {
     false
 }
 
-fn rle(list: Vec<u32>) -> Vec<(i32, u32)> {
-    let mut rle: Vec<(i32, u32)> = Vec::new();
+fn rle(list: Vec<i32>) -> Vec<(i32, i32)> {
+    let mut rle: Vec<(i32, i32)> = Vec::new();
 
     for digit in list.iter() {
         if let Some(x) = rle.last() {
@@ -104,14 +96,8 @@ fn rle(list: Vec<u32>) -> Vec<(i32, u32)> {
     rle
 }
 
-fn has_no_larger_group(number: i64) -> bool {
-    let digits = number
-        .to_string()
-        .as_bytes()
-        .iter()
-        .map(|x| *x as char)
-        .map(|x| x.to_digit(10).unwrap())
-        .collect::<Vec<u32>>();
+fn has_no_larger_group(number: i32) -> bool {
+    let digits = get_digits(number);
 
     let rle = rle(digits);
 
@@ -124,7 +110,15 @@ fn has_no_larger_group(number: i64) -> bool {
     false
 }
 
-fn not_decreasing(number: i64) -> bool {
+pub fn get_digits(number: i32) -> Vec<i32> {
+    number.to_string()
+        .chars()
+        .filter_map(|x| x.to_digit(10))
+        .map(|x| (x as i32))
+        .collect()
+}
+
+fn not_decreasing(number: i32) -> bool {
     let string = number.to_string();
 
     let mut last_number = 0;
