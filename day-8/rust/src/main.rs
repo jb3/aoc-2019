@@ -1,8 +1,7 @@
 use std::io::Read;
 use std::fs::File;
-use std::process::{Command, Stdio};
 
-use image::ImageBuffer;
+mod letters;
 
 const IMAGE_WIDTH: usize = 25;
 const IMAGE_HEIGHT: usize = 6;
@@ -46,34 +45,24 @@ fn main() {
         }
     }
 
-    let mut imgbuf = ImageBuffer::new((IMAGE_WIDTH as u32) * 10, (IMAGE_HEIGHT as u32) * 10);
+    let mut columns: Vec<Vec<bool>> = Vec::new();
 
-    for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
-        if constructed_image[y as usize / 10][x as usize / 10] == 1 {
-            *pixel = image::Luma([0]);
-        } else {
-            *pixel = image::Luma([255]);
+    for y in 0..IMAGE_WIDTH {
+        let mut col: Vec<bool> = Vec::new();
+        for x in 0..IMAGE_HEIGHT {
+            let pix = constructed_image[x][y];
+            col.push(pix == 1);
         }
+        columns.push(col);
     }
 
-    let ocrad = Command::new("ocrad")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Could not start ocrad, is it installed?");
+    let mut solution = String::new();
 
-    let buf: &[u16] = &imgbuf.into_vec()[..];
+    for letter in columns.chunks(5) {
+        solution.push(letters::find_letter(letter.to_vec()));
+    }
 
-    image::pnm::PNMEncoder::new(ocrad.stdin.unwrap())
-        .with_subtype(image::pnm::PNMSubtype::Bitmap(image::pnm::SampleEncoding::Binary))
-        .encode(buf, (IMAGE_WIDTH * 10) as u32, (IMAGE_HEIGHT * 10) as u32, image::Gray(8))
-        .unwrap();
-
-    let mut buf = String::new();
-
-    ocrad.stdout.unwrap().read_to_string(&mut buf).unwrap();
-
-    println!("Part 2: {}", buf.trim());
+    println!("Part 2: {}", solution);
 }
 
 fn get_input() -> Vec<i32> {
