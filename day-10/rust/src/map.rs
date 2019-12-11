@@ -6,33 +6,27 @@ pub struct Point {
     pub y: i64
 }
 
-impl Point {
-    pub fn down(&self) -> Point {
-        Point {
-            x: self.x,
-            y: self.y + 1
+pub struct Uniques<T> {
+    angles: Vec<T>
+}
+
+impl<T: std::cmp::PartialEq> Uniques<T> {
+    pub fn new() -> Uniques<T> {
+        Uniques {
+            angles: Vec::new()
         }
     }
 
-    pub fn up(&self) -> Point {
-        Point {
-            x: self.x,
-            y: self.y - 1
-        }
+    pub fn len(&self) -> usize {
+        self.angles.len()
     }
 
-    pub fn left(&self) -> Point {
-        Point {
-            x: self.x - 1,
-            y: self.y
+    pub fn add(&mut self, other: T) {
+        if self.angles.contains(&other) {
+            return;
         }
-    }
 
-    pub fn right(&self) -> Point {
-        Point {
-            x: self.x + 1,
-            y: self.y
-        }
+        self.angles.push(other);
     }
 }
 
@@ -80,97 +74,60 @@ impl Map {
         }
     }
 
-    fn get_directional_intersections(&self, point: &Point) -> (Vec<Asteroid>, Vec<Asteroid>) {
-        let mut intersections: Vec<Asteroid> = Vec::new();
-        let mut blocked: Vec<Asteroid> = Vec::new();
-        // Up
-        let mut p = point.clone();
-        let mut found = false;
-
-        for _ in 0..p.y {
-            p = p.up();
-
-            if let Some(ast) = &self.coordinates[p.y as usize][p.x as usize] {
-                if found == false {
-                    intersections.push(ast.clone());
-                    found = true;
-                }
-                blocked.push(ast.clone())
-            }
-        }
-
-        // Down
-        let mut p = point.clone();
-        let mut found = false;
-
-        for _ in 0..(self.coordinates.len() - p.y as usize - 1) {
-            p = p.down();
-
-            if let Some(ast) = &self.coordinates[p.y as usize][p.x as usize] {
-                if found == false {
-                    intersections.push(ast.clone());
-                    found = true;
-                }
-                blocked.push(ast.clone())
-            }
-        }
-
-        // Left
-
-        let mut p = point.clone();
-        let mut found = false;
-
-        for _ in 0..p.x {
-            p = p.left();
-
-            if let Some(ast) = &self.coordinates[p.y as usize][p.x as usize] {
-                if found == false {
-                    intersections.push(ast.clone());
-                    found = true;
-                }
-                blocked.push(ast.clone())
-            }
-        }
-
-        // Right
-
-        let mut p = point.clone();
-        let mut found = false;
-
-        for _ in 0..(self.coordinates[0].len() - (p.x as usize) - 1) {
-            p = p.right();
-
-            if let Some(ast) = &self.coordinates[p.y as usize][p.x as usize] {
-                if found == false {
-                    intersections.push(ast.clone());
-                    found = true;
-                }
-                blocked.push(ast.clone())
-            }
-        }
-
-        (blocked, intersections)
+    pub fn distance(&self, p1: Point, p2: Point) -> f64 {
+        (((p1.x - p2.x).pow(2) + (p1.y - p2.y).pow(2)) as f64).sqrt()
     }
 
-    fn get_points_between(&self, p1: Point, p2: Point) -> Vec<Point> {
-        let mut points: Vec<Point> = Vec::new();
-        let m: f64 = ((p1.y - p2.y) as f64) / ((p1.x - p2.x) as f64);
-        let c = (p1.y as f64) - (m * p1.x as f64);
+    pub fn calculate_nth_shot(&mut self, base: Point, i: i64) -> Asteroid {
+        let mut asteroids = self.asteroids.clone();
 
-        for x in p1.x + 1..p2.x {
-            let xf = x as f64;
+        asteroids.sort_by(|a, b| {
+            let first_angle = self.atan2(base.clone(), a.location.clone());
+            let second_angle = self.atan2(base.clone(), b.location.clone());
 
-            let y = (m*xf) + c;
+            first_angle
+                .partial_cmp(&second_angle)
+                .unwrap()
+                .then_with(|| self.distance(a.location.clone(), base.clone())
+                                .partial_cmp(
+                                    &self.distance(b.location.clone(), base.clone())
+                                ).unwrap())
+        });
 
-            if y.trunc() == y {
-                points.push(Point {
-                    x: x,
-                    y: y as i64
-                })
+        let mut shot = 0;
+
+        while !asteroids.is_empty() {
+            let mut unreachable = Vec::new();
+            let mut last_dir = None;
+
+            for asteroid in &asteroids {
+                let dir = self.atan2(base.clone(), asteroid.location.clone());
+
+                if last_dir == Some(dir) {
+                    unreachable.push(asteroid.clone());
+                } else {
+                    shot += 1;
+                    if shot == i {
+                        return asteroid.clone();
+                    }
+
+                    last_dir = Some(dir);
+                }
             }
+
+            asteroids = unreachable;
         }
 
-        points
+        panic!("What.")
+    }
+
+    pub fn atan2(&self, point1: Point, point2: Point) -> f64 {
+        -((point2.x - point1.x) as f64).atan2((point2.y - point1.y) as f64)
+    }
+
+    pub fn remove(&mut self, ast: Asteroid) {
+        self.asteroids.remove_item(&ast);
+        self.coordinates[ast.location.y as usize][ast.location.x as usize] = None;
     }
 
     pub fn calculate_line_of_sight(&mut self) -> HashMap<Asteroid, i64> {
@@ -179,37 +136,19 @@ impl Map {
         for asteroid in &self.asteroids {
             let origin = asteroid.location.clone();
 
-            let (blocked, mut intersections): (Vec<Asteroid>, Vec<Asteroid>) = self.get_directional_intersections(&origin);
+            let mut angles: Uniques<f64> = Uniques::new();
 
-            'target: for asteroid_target in &self.asteroids {
-                if asteroid == asteroid_target {
+            for target in &self.asteroids {
+                if asteroid == target {
                     continue;
                 }
 
-                if blocked.contains(asteroid_target) {
-                    continue;
-                }
+                let angle_rads = ((target.location.x - origin.x) as f64).atan2((origin.y - target.location.y) as f64);
 
-                let target = asteroid_target.location.clone();
-
-                let other_points: Vec<Point>;
-
-                if origin.x < target.x {
-                    other_points = self.get_points_between(origin.clone(), target);
-                } else {
-                    other_points = self.get_points_between(target, origin.clone());
-                }
-
-                for point in other_points {
-                    if let Some(_) = &self.coordinates[point.y as usize][point.x as usize] {
-                        continue 'target;
-                    }
-                }
-
-                intersections.push(asteroid_target.clone());
+                angles.add(angle_rads);
             }
 
-            ast_counts.insert(asteroid.clone(), intersections.len() as i64);
+            ast_counts.insert(asteroid.clone(), angles.len() as i64);
         }
 
         ast_counts
